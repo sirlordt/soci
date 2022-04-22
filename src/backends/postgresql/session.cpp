@@ -35,6 +35,8 @@ postgresql_session_backend::postgresql_session_backend(
     connection_parameters const& parameters, bool single_row_mode)
     : statementCount_(0), conn_(0)
 {
+    transaction_isolation_level_ = 0;
+
     single_row_mode_ = single_row_mode;
 
     connect(parameters);
@@ -88,6 +90,54 @@ bool postgresql_session_backend::is_connected()
 
     // And then check it again.
     return PQstatus(conn_) == CONNECTION_OK;
+}
+
+unsigned short postgresql_session_backend::t_isolation_level()
+{
+    return transaction_isolation_level_;
+}
+
+bool postgresql_session_backend::t_isolation_level( unsigned short level )
+{
+    bool result = false;
+
+    std::string query;
+
+    //Do specific code to handle the new level of isolation level
+    //From doc in https://www.postgresql.org/docs/current/sql-set-transaction.html
+    switch ( level )
+    {
+       case 0: //REPEATABLE READ
+       {
+           query = "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ";
+           break;
+       }
+       case 1: //READ COMMITTED
+       {
+           query = "SET TRANSACTION ISOLATION LEVEL READ COMMITTED";
+           break;
+       }
+       case 2: //READ UNCOMMITTED
+       {
+           query = "SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED";
+           break;
+       }
+       case 3: //SERIALIZABLE
+       {
+           query = "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE";
+           break;
+       }
+    }
+
+    if ( query != "" ) {
+
+        hard_exec(*this, conn_, query.c_str(), "Cannot set transaction isolation level");
+        transaction_isolation_level_ = level;
+        result = true;
+
+    }
+
+    return result;
 }
 
 void postgresql_session_backend::begin()

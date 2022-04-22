@@ -326,6 +326,20 @@ bool session::current_transaction_is_active() const
     return this->transaction_ != NULL ? transaction_->is_active(): false;
 }
 
+unsigned short session::t_isolation_level()
+{
+    ensureConnected(backEnd_);
+
+    return backEnd_->t_isolation_level();
+}
+
+bool session::t_isolation_level( unsigned short level )
+{
+    ensureConnected(backEnd_);
+
+    return backEnd_->t_isolation_level( level );
+}
+
 transaction * session::begin()
 {
     ensureConnected(backEnd_);

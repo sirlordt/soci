@@ -128,6 +128,8 @@ oracle_session_backend::oracle_session_backend(std::string const & serviceName,
     : envhp_(NULL), srvhp_(NULL), errhp_(NULL), svchp_(NULL), usrhp_(NULL),
       decimals_as_strings_(decimals_as_strings)
 {
+    transaction_isolation_level_ = 0;
+
     // assume service/user/password are utf8-compatible already
     const int defaultSourceCharSetId = 871;
 
@@ -374,6 +376,20 @@ oracle_session_backend::~oracle_session_backend()
 bool oracle_session_backend::is_connected()
 {
     return OCIPing(svchp_, errhp_, OCI_DEFAULT) == OCI_SUCCESS;
+}
+
+unsigned short oracle_session_backend::t_isolation_level()
+{
+    return transaction_isolation_level_;
+}
+
+bool oracle_session_backend::t_isolation_level( unsigned short level )
+{
+    transaction_isolation_level_ = level;
+
+    //Do specific code to handle the new level of isolation level
+
+    return true;
 }
 
 void oracle_session_backend::begin()

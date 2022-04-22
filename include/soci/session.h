@@ -72,6 +72,9 @@ public:
     transaction * current_transaction() const;
     bool current_transaction_is_active() const;
 
+    unsigned short t_isolation_level();
+    bool t_isolation_level( unsigned short level );
+
     transaction * begin();
     void commit();
     void rollback();

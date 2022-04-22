@@ -154,6 +154,9 @@ struct empty_session_backend : details::session_backend
 
     bool is_connected() SOCI_OVERRIDE { return true; }
 
+    unsigned short t_isolation_level() SOCI_OVERRIDE;
+    bool t_isolation_level( unsigned short level ) SOCI_OVERRIDE;
+
     void begin() SOCI_OVERRIDE;
     void commit() SOCI_OVERRIDE;
     void rollback() SOCI_OVERRIDE;

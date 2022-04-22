@@ -307,6 +307,9 @@ struct oracle_session_backend : details::session_backend
 
     bool is_connected() SOCI_OVERRIDE;
 
+    uint8_t t_isolation_level() SOCI_OVERRIDE;
+    bool t_isolation_level( u_int8_t level ) SOCI_OVERRIDE;
+
     void begin() SOCI_OVERRIDE;
     void commit() SOCI_OVERRIDE;
     void rollback() SOCI_OVERRIDE;
@@ -449,6 +452,9 @@ struct oracle_session_backend : details::session_backend
     OCISvcCtx *svchp_;
     OCISession *usrhp_;
     bool decimals_as_strings_;
+
+    u_int8_t transaction_isolation_level_;
+
 };
 
 struct oracle_backend_factory : backend_factory
