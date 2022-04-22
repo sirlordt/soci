@@ -12,9 +12,45 @@
 using namespace soci;
 
 transaction::transaction(session& sql)
-    : handled_(false), sql_(sql)
+    : handled_(false), sql_(sql), by_session_(false), status_(1) //Active
 {
-    sql_.begin();
+    if (sql_.current_transaction() == NULL ||  //Session already in transaction?
+        sql_.allow_multiple_transaction())     //Session allow multiple transactions?
+    {
+        if (sql_.current_transaction() != NULL) //The session already with transaction?
+        {
+           if (sql_.current_transaction()->by_session()) //Yes already had. Is created by session object?
+           {
+               //Yes is created by session object.
+               bool old_handled_state = sql_.transaction_->handled_;
+
+               sql_.transaction_->handled_ = true; //Disable the transaction prevent call Transaction::Destructor -> Session::Rollback
+
+               delete sql_.transaction_;  //Prevent memory leak
+
+               if ( old_handled_state == false )
+               {
+                   sql_.rollback();           //Revert in session transaction
+               }
+           }
+        }
+
+
+        sql_.transaction_ = this; //Pass the reference back. This transaction is created outside of session object
+        sql_.begin();
+    }
+    else {
+        status_ = 0; //Disabled
+        handled_ = true; //Yes. Session already in transaction and not allow mutiple transactions. Auto disable this transaction object
+    }
+}
+
+//Private constructor use from session object in case not assigned transaction.
+//Used in src/core/session.cpp:343
+transaction::transaction(session& sql, bool by_session)
+    : handled_(false), sql_(sql), by_session_(by_session), status_(1) //Active
+{
+    //This instance is created from inside of session object.
 }
 
 transaction::~transaction()
@@ -24,9 +60,15 @@ transaction::~transaction()
         try
         {
             rollback();
+            status_ = 3; //Rolled back
         }
         catch (...)
         {}
+    }
+
+    if (sql_.transaction_ == this)
+    {
+        sql_.transaction_ = NULL; //Clear my reference in the session object
     }
 }
 
@@ -38,6 +80,7 @@ void transaction::commit()
     }
 
     sql_.commit();
+    status_ = 2; //Commited
     handled_ = true;
 }
 
@@ -49,5 +92,30 @@ void transaction::rollback()
     }
 
     sql_.rollback();
+    status_ = 3; //Rolled back
     handled_ = true;
+}
+
+inline session& transaction::current_session() const
+{
+    return sql_;
+}
+
+bool transaction::is_active() const
+{
+    return this->handled_ == false;
+}
+
+bool transaction::by_session() const //This transaction is auto created inside of the object session? src/core/session.cpp:291
+{
+    return this->by_session_;
+}
+
+// 0 = Disabled
+// 1 = Active
+// 2 = Commited
+// 3 = Rolled back
+unsigned short transaction::status() const
+{
+    return this->status_;
 }
