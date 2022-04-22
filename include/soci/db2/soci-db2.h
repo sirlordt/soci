@@ -245,6 +245,9 @@ struct db2_session_backend : details::session_backend
 
     bool is_connected() SOCI_OVERRIDE;
 
+    unsigned short t_isolation_level() SOCI_OVERRIDE;
+    bool t_isolation_level( unsigned short level ) SOCI_OVERRIDE;
+
     void begin() SOCI_OVERRIDE;
     void commit() SOCI_OVERRIDE;
     void rollback() SOCI_OVERRIDE;
@@ -268,6 +271,9 @@ struct db2_session_backend : details::session_backend
 
     SQLHANDLE hEnv; /* Environment handle */
     SQLHANDLE hDbc; /* Connection handle */
+
+    unsigned short  transaction_isolation_level_;
+
 };
 
 struct SOCI_DB2_DECL db2_backend_factory : backend_factory

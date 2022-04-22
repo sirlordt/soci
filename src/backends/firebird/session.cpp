@@ -216,6 +216,8 @@ firebird_session_backend::firebird_session_backend(
     connection_parameters const & parameters) : dbhp_(0), trhp_(0)
                                          , decimals_as_strings_(false)
 {
+    transaction_isolation_level_ = 0;
+
     // extract connection parameters
     std::map<std::string, std::string>
         params(explodeISCConnectString(parameters.get_connect_string()));
@@ -264,6 +266,53 @@ firebird_session_backend::firebird_session_backend(
     }
 }
 
+unsigned short firebird_session_backend::t_isolation_level()
+{
+    return transaction_isolation_level_;
+}
+
+bool firebird_session_backend::t_isolation_level( unsigned short level )
+{
+    bool result = false;
+
+    std::string query;
+
+    //Do specific code to handle the new level of isolation level
+    //From doc in https://www.ibm.com/docs/en/i/7.4?topic=statements-set-transaction
+    switch ( level )
+    {
+       case 0: //REPEATABLE READ => SNAPSHOT in firebird
+       {
+           query = "SET TRANSACTION ISOLATION LEVEL SNAPSHOT";
+           break;
+       }
+       case 1: //READ COMMITTED
+       {
+           query = "SET TRANSACTION ISOLATION LEVEL READ COMMITTED";
+           break;
+       }
+       case 2: //READ UNCOMMITTED NO EXISTS IN FIREBIRD
+       {
+           //query = "SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED";
+           break;
+       }
+       case 3: //SERIALIZABLE => SNAPSHOT TABLE STABILITY in Firebird
+       {
+           query = "SET TRANSACTION ISOLATION LEVEL SNAPSHOT TABLE STABILITY";
+           break;
+       }
+    }
+
+    if ( query != "" ) {
+
+        //hard_exec(conn_, query);
+        transaction_isolation_level_ = level;
+        result = true;
+
+    }
+
+    return result;
+}
 
 void firebird_session_backend::begin()
 {

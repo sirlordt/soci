@@ -23,6 +23,8 @@ odbc_session_backend::odbc_session_backend(
     connection_parameters const & parameters)
     : henv_(0), hdbc_(0), product_(prod_uninitialized)
 {
+    transaction_isolation_level_ = 0;
+
     SQLRETURN rc;
 
     // Allocate environment handle
@@ -218,6 +220,20 @@ bool odbc_session_backend::is_connected()
                                     NULL, SQL_NTS,
                                     sqlchar_cast("bloordyblop"), SQL_NTS,
                                     NULL, SQL_NTS));
+}
+
+unsigned short odbc_session_backend::t_isolation_level()
+{
+    return transaction_isolation_level_;
+}
+
+bool odbc_session_backend::t_isolation_level( unsigned short level )
+{
+    transaction_isolation_level_ = level;
+
+    //Do specific code to handle the new level of isolation level
+
+    return true;
 }
 
 void odbc_session_backend::begin()

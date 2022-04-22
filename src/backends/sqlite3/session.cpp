@@ -136,6 +136,18 @@ sqlite3_session_backend::~sqlite3_session_backend()
     clean_up();
 }
 
+unsigned short sqlite3_session_backend::t_isolation_level()
+{
+    //Doc from https://www.sqlite.org/isolation.html in SUMARY section
+    return 3; //sqlite only had SERIALIZABLE transactions
+}
+
+bool sqlite3_session_backend::t_isolation_level( unsigned short level )
+{
+    //Doc from https://www.sqlite.org/isolation.html in SUMARY section
+    return level == 3; //sqlite only had SERIALIZABLE transactions
+}
+
 void sqlite3_session_backend::begin()
 {
     execude_hardcoded(conn_, "BEGIN", "Cannot begin transaction.");

@@ -263,6 +263,14 @@ public:
 
     virtual bool is_connected() = 0;
 
+    // 0 = REPEATABLE READ
+    // 1 = READ COMMITTED
+    // 2 = READ UNCOMMITTED
+    // 3 = SERIALIZABLE
+    // 4 = NO COMMIT => DB2
+    virtual unsigned short t_isolation_level() = 0;
+    virtual bool t_isolation_level( unsigned short level ) = 0;
+
     virtual void begin() = 0;
     virtual void commit() = 0;
     virtual void rollback() = 0;

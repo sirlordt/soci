@@ -360,6 +360,8 @@ void parse_connect_string(const string & connectString,
 mysql_session_backend::mysql_session_backend(
     connection_parameters const & parameters)
 {
+    transaction_isolation_level_ = 0;
+
     mysql_library::ensure_initialized();
 
     string host, user, password, db, unix_socket, ssl_ca, ssl_cert, ssl_key,
@@ -499,6 +501,54 @@ void hard_exec(MYSQL *conn, const string & query)
 bool mysql_session_backend::is_connected()
 {
     return mysql_ping(conn_) == 0;
+}
+
+unsigned short mysql_session_backend::t_isolation_level()
+{
+    return transaction_isolation_level_;
+}
+
+bool mysql_session_backend::t_isolation_level( unsigned short level )
+{
+    bool result = false;
+
+    std::string query;
+
+    //Do specific code to handle the new level of isolation level
+    //From doc in https://dev.mysql.com/doc/refman/8.0/en/set-transaction.html
+    switch ( level )
+    {
+       case 0: //REPEATABLE READ
+       {
+           query = "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ";
+           break;
+       }
+       case 1: //READ COMMITTED
+       {
+           query = "SET TRANSACTION ISOLATION LEVEL READ COMMITTED";
+           break;
+       }
+       case 2: //READ UNCOMMITTED
+       {
+           query = "SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED";
+           break;
+       }
+       case 3: //SERIALIZABLE
+       {
+           query = "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE";
+           break;
+       }
+    }
+
+    if ( query != "" ) {
+
+        hard_exec(conn_, query);
+        transaction_isolation_level_ = level;
+        result = true;
+
+    }
+
+    return result;
 }
 
 void mysql_session_backend::begin()

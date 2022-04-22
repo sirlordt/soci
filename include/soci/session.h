@@ -67,6 +67,9 @@ public:
     // check if we have a working connection to the database
     bool is_connected() const SOCI_NOEXCEPT;
 
+    unsigned short t_isolation_level();
+    bool t_isolation_level( unsigned short level );
+
     void begin();
     void commit();
     void rollback();

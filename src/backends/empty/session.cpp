@@ -27,6 +27,16 @@ empty_session_backend::~empty_session_backend()
     clean_up();
 }
 
+unsigned short empty_session_backend::t_isolation_level()
+{
+    return 0;
+}
+
+bool empty_session_backend::t_isolation_level( unsigned short level )
+{
+    return false;
+}
+
 void empty_session_backend::begin()
 {
     // ...

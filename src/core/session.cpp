@@ -251,6 +251,20 @@ bool session::is_connected() const SOCI_NOEXCEPT
     }
 }
 
+unsigned short session::t_isolation_level()
+{
+    ensureConnected(backEnd_);
+
+    return backEnd_->t_isolation_level();
+}
+
+bool session::t_isolation_level( unsigned short level )
+{
+    ensureConnected(backEnd_);
+
+    return backEnd_->t_isolation_level( level );
+}
+
 void session::begin()
 {
     ensureConnected(backEnd_);
