@@ -12,7 +12,7 @@
 using namespace soci;
 
 transaction::transaction(session& sql)
-    : handled_(false), sql_(sql), by_session_(false)
+    : handled_(false), sql_(sql), by_session_(false), status_(1) //Active
 {
     if (sql_.current_transaction() == NULL ||  //Session already in transaction?
         sql_.allow_multiple_transaction())     //Session allow multiple transactions?
@@ -35,10 +35,12 @@ transaction::transaction(session& sql)
            }
         }
 
+
         sql_.transaction_ = this; //Pass the reference back. This transaction is created outside of session object
         sql_.begin();
     }
     else {
+        status_ = 0; //Disabled
         handled_ = true; //Yes. Session already in transaction and not allow mutiple transactions. Auto disable this transaction object
     }
 }
@@ -46,7 +48,7 @@ transaction::transaction(session& sql)
 //Private constructor use from session object in case not assigned transaction.
 //Used in src/core/session.cpp:343
 transaction::transaction(session& sql, bool by_session)
-    : handled_(false), sql_(sql), by_session_(by_session)
+    : handled_(false), sql_(sql), by_session_(by_session), status_(1) //Active
 {
     //This instance is created from inside of session object.
 }
@@ -58,6 +60,7 @@ transaction::~transaction()
         try
         {
             rollback();
+            status_ = 3; //Rolled back
         }
         catch (...)
         {}
@@ -77,6 +80,7 @@ void transaction::commit()
     }
 
     sql_.commit();
+    status_ = 2; //Commited
     handled_ = true;
 }
 
@@ -88,6 +92,7 @@ void transaction::rollback()
     }
 
     sql_.rollback();
+    status_ = 3; //Rolled back
     handled_ = true;
 }
 
@@ -104,4 +109,13 @@ bool transaction::is_active() const
 bool transaction::by_session() const //This transaction is auto created inside of the object session? src/core/session.cpp:291
 {
     return this->by_session_;
+}
+
+// 0 = Disabled
+// 1 = Active
+// 2 = Commited
+// 3 = Rolled back
+unsigned short transaction::status() const
+{
+    return this->status_;
 }
