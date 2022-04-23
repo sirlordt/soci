@@ -24,7 +24,7 @@ public:
     void commit();
     void rollback();
 
-    inline session & current_session() const;
+    session & current_session() const;
 
     bool is_active() const;
     bool by_session() const;
