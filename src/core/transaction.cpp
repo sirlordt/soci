@@ -96,7 +96,7 @@ void transaction::rollback()
     handled_ = true;
 }
 
-inline session& transaction::current_session() const
+session & transaction::current_session() const
 {
     return sql_;
 }
