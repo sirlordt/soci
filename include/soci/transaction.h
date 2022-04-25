@@ -14,6 +14,13 @@
 namespace soci
 {
 
+enum transaction_status {
+    disabled   = 0,
+    active     = 1,
+    commited   = 2,
+    rolledback = 3
+};
+
 class SOCI_DECL transaction
 {
 public:
@@ -29,7 +36,7 @@ public:
     bool is_active() const;
     bool by_session() const;
 
-    unsigned short status() const;
+    transaction_status status() const;
 
 private:
     //Private constructor use from session object in case not assigned transaction.
@@ -43,7 +50,12 @@ private:
     // 1 = Active
     // 2 = Commited
     // 3 = Rolled back
-    unsigned short status_;
+    transaction_status status_;
+
+    void disabled();
+    void active();
+    void commited();
+    void rolledback();
 
     friend class session;
 
