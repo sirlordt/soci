@@ -218,8 +218,12 @@ private:
     std::size_t poolPosition_;
     connection_pool * pool_;
 
-    transaction * transaction_;
+    transaction * internalTransaction_;
+    transaction * externalTransaction_;
     bool allowMultipleTransaction_;
+
+    void begin_external_transaction();
+    void delete_internal_transaction();
 
     friend class transaction;
 };
