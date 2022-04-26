@@ -70,6 +70,11 @@ transaction::~transaction()
     {
         sql_.externalTransaction_ = NULL; //Clear the reference in the session object
     }
+
+    if (sql_.internalTransaction_ == this)
+    {
+        sql_.internalTransaction_ = NULL; //Clear the reference in the session object
+    }
 }
 
 void transaction::commit()
