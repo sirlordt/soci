@@ -11,6 +11,7 @@
 #include "soci/connection-pool.h"
 #include "soci/soci-backend.h"
 #include "soci/query_transformation.h"
+#include "soci/transaction.h"
 
 using namespace soci;
 using namespace soci::details;
@@ -76,7 +77,9 @@ session::session()
     : once(this), prepare(this), query_transformation_(NULL),
       logger_(new standard_logger_impl),
       uppercaseColumnNames_(false), backEnd_(NULL),
-      isFromPool_(false), pool_(NULL)
+      isFromPool_(false), pool_(NULL),
+      internalTransaction_(NULL),externalTransaction_(NULL),
+      allowMultipleTransaction_(true)
 {
 }
 
@@ -85,7 +88,9 @@ session::session(connection_parameters const & parameters)
       logger_(new standard_logger_impl),
       lastConnectParameters_(parameters),
       uppercaseColumnNames_(false), backEnd_(NULL),
-      isFromPool_(false), pool_(NULL)
+      isFromPool_(false), pool_(NULL),
+      internalTransaction_(NULL),externalTransaction_(NULL),
+      allowMultipleTransaction_(true)
 {
     open(lastConnectParameters_);
 }
@@ -96,7 +101,9 @@ session::session(backend_factory const & factory,
     logger_(new standard_logger_impl),
       lastConnectParameters_(factory, connectString),
       uppercaseColumnNames_(false), backEnd_(NULL),
-      isFromPool_(false), pool_(NULL)
+      isFromPool_(false), pool_(NULL),
+      internalTransaction_(NULL),externalTransaction_(NULL),
+      allowMultipleTransaction_(true)
 {
     open(lastConnectParameters_);
 }
@@ -107,7 +114,9 @@ session::session(std::string const & backendName,
       logger_(new standard_logger_impl),
       lastConnectParameters_(backendName, connectString),
       uppercaseColumnNames_(false), backEnd_(NULL),
-      isFromPool_(false), pool_(NULL)
+      isFromPool_(false), pool_(NULL),
+      internalTransaction_(NULL),externalTransaction_(NULL),
+      allowMultipleTransaction_(true)
 {
     open(lastConnectParameters_);
 }
@@ -117,7 +126,9 @@ session::session(std::string const & connectString)
       logger_(new standard_logger_impl),
       lastConnectParameters_(connectString),
       uppercaseColumnNames_(false), backEnd_(NULL),
-      isFromPool_(false), pool_(NULL)
+      isFromPool_(false), pool_(NULL),
+      internalTransaction_(NULL),externalTransaction_(NULL),
+      allowMultipleTransaction_(true)
 {
     open(lastConnectParameters_);
 }
@@ -125,7 +136,9 @@ session::session(std::string const & connectString)
 session::session(connection_pool & pool)
     : query_transformation_(NULL),
       logger_(new standard_logger_impl),
-      isFromPool_(true), pool_(&pool)
+      isFromPool_(true), pool_(&pool),
+      internalTransaction_(NULL),externalTransaction_(NULL),
+      allowMultipleTransaction_(true)
 {
     poolPosition_ = pool.lease();
     session & pooledSession = pool.at(poolPosition_);
@@ -137,6 +150,8 @@ session::session(connection_pool & pool)
 
 session::~session()
 {
+    this->delete_internal_transaction();
+
     if (isFromPool_)
     {
         pool_->give_back(poolPosition_);
@@ -145,6 +160,25 @@ session::~session()
     {
         delete query_transformation_;
         delete backEnd_;
+    }
+}
+
+void session::delete_internal_transaction()
+{
+    if (this->internalTransaction_ != NULL)
+    {
+        bool is_active = this->internalTransaction_->is_active();
+
+        this->internalTransaction_->disabled();
+        delete this->internalTransaction_;
+
+        this->internalTransaction_ = NULL;
+
+        if (is_active &&
+            backEnd_)
+        {
+            backEnd_->rollback();
+        }
     }
 }
 
@@ -193,6 +227,8 @@ void session::open(std::string const & connectString)
 
 void session::close()
 {
+    this->delete_internal_transaction();
+
     if (isFromPool_)
     {
         pool_->at(poolPosition_).close();
@@ -251,8 +287,91 @@ bool session::is_connected() const SOCI_NOEXCEPT
     }
 }
 
-void session::begin()
+void session::allow_multiple_transaction( bool allow_multiple_transaction )
 {
+    this->allowMultipleTransaction_ = allow_multiple_transaction;
+}
+
+bool session::allow_multiple_transaction() const
+{
+    return this->allowMultipleTransaction_;
+}
+
+transaction * session::current_transaction() const
+{
+    if (this->internalTransaction_ == NULL ||
+        this->internalTransaction_->is_active() == false)
+    {
+        return this->externalTransaction_;
+    }
+    else
+        return this->internalTransaction_;
+}
+
+bool session::current_transaction_is_active() const
+{
+    return current_transaction() && current_transaction()->is_active(); //this->transaction_ != NULL ? transaction_->is_active(): false;
+}
+
+transaction * session::begin()
+{
+    ensureConnected(backEnd_);
+
+    bool is_active = false;
+    transaction * transactionToUse = NULL;
+
+    if (this->externalTransaction_ != NULL) //External transaction object associated?
+    {
+        is_active = this->externalTransaction_->is_active();  //Is active?
+        this->externalTransaction_->active();
+        // this->externalTransaction_->handled_ = false;   //Reactive the transaction
+        // this->externalTransaction_->status_  = 1;       //Active
+
+        transactionToUse = this->externalTransaction_; //Use the external transaction
+    }
+    else if (this->internalTransaction_ == NULL) //No transaction object associated yet?
+    {
+        //Create transaction object because not associated yet
+        //Mark the by_session to true, to indicate is create inside of session object.
+        //by_session help to know when is need delete the pointer and prevent memory leak
+        this->internalTransaction_ = new transaction(*this, true); //No auto start transaction private constructor. Because we start the transaction in the next line
+
+        transactionToUse = this->internalTransaction_; //Use internal created transaction
+    }
+    else
+    {
+        is_active = this->internalTransaction_->is_active(); //Is active?
+        this->internalTransaction_->active();
+        // this->internalTransaction_->handled_ = false;    //Reactive the transaction
+        // this->internalTransaction_->status_  = 1;        //Active
+
+        transactionToUse = this->internalTransaction_;   //Use internal already created transaction
+    }
+
+    if (is_active == false) //Only if needed call to begin
+    {
+        backEnd_->begin();
+    }
+
+    return transactionToUse;
+}
+
+void session::begin_external_transaction()
+{
+    if (this->internalTransaction_ != NULL)
+    {
+        bool is_active = this->internalTransaction_->is_active();
+
+        this->internalTransaction_->disabled();
+        // this->internalTransaction_->handled_ = true;
+        // this->internalTransaction_->status_  = 0; //Disabled
+
+        if (is_active) //Only if needed call to rollback
+        {
+            backEnd_->rollback();
+        }
+    }
+
     ensureConnected(backEnd_);
 
     backEnd_->begin();
@@ -263,6 +382,15 @@ void session::commit()
     ensureConnected(backEnd_);
 
     backEnd_->commit();
+
+    if (this->current_transaction() &&
+        this->current_transaction()->by_session())
+    {
+        transaction * currentTransaction =  this->current_transaction();
+        currentTransaction->commited();
+        // currentTransaction->handled_ = true; //Disable the transaction object. Prevent any operation in transaction object.
+        // currentTransaction->status_  = 2;    //Commited
+    }
 }
 
 void session::rollback()
@@ -270,6 +398,15 @@ void session::rollback()
     ensureConnected(backEnd_);
 
     backEnd_->rollback();
+
+    if (this->current_transaction() &&
+        this->current_transaction()->by_session())
+    {
+        transaction * currentTransaction =  this->current_transaction();
+        currentTransaction->rolledback();
+        // currentTransaction->handled_ = true; //Disable the transaction object. Prevent any operation in transaction object.
+        // currentTransaction->status_  = 3;    //Rolled back
+    }
 }
 
 std::ostringstream & session::get_query_stream()
